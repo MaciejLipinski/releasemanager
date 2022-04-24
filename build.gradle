@@ -1,0 +1,124 @@
+buildscript {
+    ext {
+        kotlin_version = '1.6.21'
+        detekt_version = '1.20.0'
+        versions = [
+                spring_boot: '2.5.13',
+                spock      : '2.1-groovy-3.0',
+                kotlin     : kotlin_version,
+                detekt     : detekt_version
+        ]
+    }
+}
+
+plugins {
+    id 'groovy'
+    id 'application'
+    id 'org.jetbrains.kotlin.jvm' version "${kotlin_version}"
+    id 'org.jetbrains.kotlin.plugin.spring' version "${kotlin_version}"
+    id 'org.jlleitschuh.gradle.ktlint' version '10.1.0'
+    id 'org.jlleitschuh.gradle.ktlint-idea' version '10.1.0'
+    id 'io.gitlab.arturbosch.detekt' version "${detekt_version}"
+}
+
+
+group = 'mt.lipinski'
+version = '0.0.1-SNAPSHOT'
+sourceCompatibility = JavaVersion.VERSION_11
+
+mainClassName = 'mt.lipinski.releasemanager.AppRunner'
+
+repositories {
+    mavenCentral()
+}
+
+configurations {
+    integrationImplementation.extendsFrom testImplementation
+    integrationRuntime.extendsFrom testRuntime
+}
+
+dependencies {
+    implementation group: 'org.springframework.boot', name: 'spring-boot-starter-data-mongodb', version: versions.spring_boot
+    implementation group: 'org.springframework.boot', name: 'spring-boot-starter-web', version: versions.spring_boot
+    implementation group: 'org.jetbrains.kotlin', name: 'kotlin-reflect', version: versions.kotlin
+    implementation group: 'org.jetbrains.kotlin', name: 'kotlin-stdlib-jdk8', version: versions.kotlin
+    implementation group: 'org.apache.httpcomponents', name: 'httpclient', version: '4.5.13'
+    implementation group: 'de.flapdoodle.embed', name: 'de.flapdoodle.embed.mongo', version: '3.4.5'
+
+    testImplementation group: 'org.codehaus.groovy', name: 'groovy-all', version: '3.0.10'
+    testImplementation group: 'org.spockframework', name: 'spock-core', version: versions.spock
+
+    integrationImplementation(group: 'org.springframework.boot', name: 'spring-boot-starter-test', version: versions.spring_boot) {
+        exclude group: 'org.assertj', module: 'assertj-core'
+    }
+    integrationImplementation group: 'org.spockframework', name: 'spock-spring', version: versions.spock
+    integrationImplementation group: 'org.codehaus.groovy.modules.http-builder', name: 'http-builder', version: '0.7.1'
+}
+
+wrapper {
+    gradleVersion = '7.4.2'
+}
+
+sourceSets {
+    integration {
+        groovy.srcDirs "$projectDir/src/integration/groovy", "$projectDir/src/test/groovy"
+        resources.srcDir "$projectDir/src/integration/resources"
+        compileClasspath += main.output + test.output
+        runtimeClasspath += main.output + test.output
+    }
+}
+
+compileKotlin.dependsOn(ktlintCheck)
+
+compileKotlin {
+    kotlinOptions {
+        jvmTarget = JavaVersion.VERSION_11
+    }
+}
+
+compileTestKotlin {
+    kotlinOptions {
+        jvmTarget = JavaVersion.VERSION_11
+    }
+}
+
+compileIntegrationKotlin {
+    kotlinOptions {
+        jvmTarget = JavaVersion.VERSION_11
+    }
+}
+
+test {
+    useJUnitPlatform()
+    testLogging {
+        exceptionFormat = 'full'
+    }
+}
+
+task unitTest(type: Test) {
+    group 'verification'
+    useJUnitPlatform()
+    testClassesDirs = sourceSets.test.output.classesDirs
+    classpath = sourceSets.test.runtimeClasspath
+    testLogging {
+        exceptionFormat = 'full'
+    }
+}
+
+task integrationTest(type: Test) {
+    group 'verification'
+    useJUnitPlatform()
+    testClassesDirs = sourceSets.integration.output.classesDirs
+    classpath = sourceSets.integration.runtimeClasspath
+    testLogging {
+        exceptionFormat = 'full'
+    }
+}
+
+test.dependsOn integrationTest
+
+detekt {
+    toolVersion = versions.detekt
+    input = files("src/main/kotlin")
+    config = files("$rootDir/config/detekt/detekt-config.yml")
+}
